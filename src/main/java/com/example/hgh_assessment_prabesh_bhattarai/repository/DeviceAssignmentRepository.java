@@ -11,6 +11,18 @@ import java.util.Optional;
 
 public interface DeviceAssignmentRepository extends JpaRepository<DeviceAssignment, Long> {
 
+    /** At most one row can match: {@code ux_device_active_assignment} guarantees it. */
+    @Query("SELECT a FROM DeviceAssignment a WHERE a.device.id = :deviceId AND a.active = true")
+    Optional<DeviceAssignment> findActiveByDeviceId(@Param("deviceId") Long deviceId);
+
+
+    @Query("""
+            SELECT a FROM DeviceAssignment a
+            WHERE a.device.id = :deviceId
+              AND a.assignedFrom <= :at
+              AND (a.assignedTo IS NULL OR a.assignedTo > :at)
+            """)
+    List<DeviceAssignment> findCoveringTimestamp(@Param("deviceId") Long deviceId, @Param("at") Instant at);
 
     List<DeviceAssignment> findByDeviceIdOrderByAssignedFromDesc(Long deviceId);
 }
