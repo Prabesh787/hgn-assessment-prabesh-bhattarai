@@ -1,6 +1,7 @@
 package com.example.hgh_assessment_prabesh_bhattarai.service.impl;
 
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.CreateAssignmentRequest;
+import com.example.hgh_assessment_prabesh_bhattarai.entity.AssignmentEndReason;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Device;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.DeviceAssignment;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.TrekOrder;
@@ -59,6 +60,7 @@ public class DeviceAssignmentServiceImpl implements DeviceAssignmentService {
 
             current.setAssignedTo(assignedFrom);
             current.setActive(false);
+            current.setEndReason(AssignmentEndReason.REASSIGNED);
 
             assignmentRepository.saveAndFlush(current);
         }
