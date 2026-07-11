@@ -5,7 +5,6 @@ import com.example.hgh_assessment_prabesh_bhattarai.entity.Alert;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertSignal;
 import com.example.hgh_assessment_prabesh_bhattarai.enums.AlertStatus;
 
-import java.time.Duration;
 import java.util.List;
 
 public interface AlertService {

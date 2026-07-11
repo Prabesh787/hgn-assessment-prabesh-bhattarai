@@ -1,7 +1,10 @@
 package com.example.hgh_assessment_prabesh_bhattarai.entity;
 
+import com.example.hgh_assessment_prabesh_bhattarai.enums.SignalKind;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -44,6 +47,10 @@ public class AlertSignal {
 
     @Column(name = "seq", nullable = false)
     private int seq;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind", nullable = false)
+    private SignalKind kind;
 
     @Generated(event = EventType.INSERT)
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)

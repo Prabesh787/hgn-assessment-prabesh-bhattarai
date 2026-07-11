@@ -56,6 +56,9 @@ public class Alert {
     @Column(name = "signal_count", nullable = false)
     private int signalCount = 1;
 
+    @Column(name = "retransmission_count", nullable = false)
+    private int retransmissionCount = 0;
+
     @Column(name = "claimed_by")
     private String claimedBy;
 

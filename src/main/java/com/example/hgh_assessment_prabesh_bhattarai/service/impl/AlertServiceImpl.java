@@ -4,6 +4,7 @@ import com.example.hgh_assessment_prabesh_bhattarai.dto.request.SosSignalRequest
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Alert;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertSignal;
 import com.example.hgh_assessment_prabesh_bhattarai.enums.AlertStatus;
+import com.example.hgh_assessment_prabesh_bhattarai.enums.SignalKind;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Device;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.DeviceAssignment;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.TrekOrder;
@@ -14,6 +15,7 @@ import com.example.hgh_assessment_prabesh_bhattarai.repository.AlertSignalReposi
 import com.example.hgh_assessment_prabesh_bhattarai.repository.DeviceAssignmentRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.DeviceRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.service.AlertService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,14 +33,18 @@ public class AlertServiceImpl implements AlertService {
     private final AlertRepository alertRepository;
     private final AlertSignalRepository alertSignalRepository;
 
+    private final Duration dedupWindow;
+
     public AlertServiceImpl(DeviceRepository deviceRepository,
                             DeviceAssignmentRepository assignmentRepository,
                             AlertRepository alertRepository,
-                            AlertSignalRepository alertSignalRepository) {
+                            AlertSignalRepository alertSignalRepository,
+                            @Value("${alert.dedup.window-minutes:5}") long dedupWindowMinutes) {
         this.deviceRepository = deviceRepository;
         this.assignmentRepository = assignmentRepository;
         this.alertRepository = alertRepository;
         this.alertSignalRepository = alertSignalRepository;
+        this.dedupWindow = Duration.ofMinutes(dedupWindowMinutes);
     }
 
     @Override
@@ -51,10 +57,11 @@ public class AlertServiceImpl implements AlertService {
         Instant receivedAt = Instant.now();
         Instant at = request.raisedAt() != null ? request.raisedAt() : receivedAt;
 
-        Optional<Alert> live = alertRepository.findLiveByDeviceId(deviceId);
-        if (live.isPresent()) {
-            Alert alert = live.get();
+        Optional<Alert> latest = alertRepository.findTopByDeviceIdOrderByLastSignalAtDesc(deviceId);
+        if (latest.isPresent() && isRetransmission(latest.get(), at)) {
+            Alert alert = latest.get();
             alert.setSignalCount(alert.getSignalCount() + 1);
+            alert.setRetransmissionCount(alert.getRetransmissionCount() + 1);
             if (at.isAfter(alert.getLastSignalAt())) {
                 alert.setLastSignalAt(at);
                 if (request.latitude() != null) {
@@ -63,7 +70,7 @@ public class AlertServiceImpl implements AlertService {
                 }
             }
             Alert saved = alertRepository.save(alert);
-            recordSignal(saved, request, at, receivedAt);
+            recordSignal(saved, request, at, receivedAt, SignalKind.RETRANSMISSION);
             return new IngestResult(saved, false);
         }
 
@@ -76,9 +83,18 @@ public class AlertServiceImpl implements AlertService {
         alert.setRaisedAt(at);
         alert.setLastSignalAt(at);
         alert.setSignalCount(1);
+        alert.setRetransmissionCount(0);
         Alert saved = alertRepository.save(alert);
-        recordSignal(saved, request, at, receivedAt);
+        recordSignal(saved, request, at, receivedAt, SignalKind.RAISED);
         return new IngestResult(saved, true);
+    }
+
+    private boolean isRetransmission(Alert alert, Instant signalAt) {
+        if (alert.getStatus() == AlertStatus.RESOLVED) {
+            return false;
+        }
+        Duration gap = Duration.between(alert.getLastSignalAt(), signalAt).abs();
+        return gap.compareTo(dedupWindow) <= 0;
     }
 
     @Override
@@ -107,7 +123,8 @@ public class AlertServiceImpl implements AlertService {
         return alertSignalRepository.findByAlertIdOrderBySeqAsc(alertId);
     }
 
-    private void recordSignal(Alert alert, SosSignalRequest request, Instant signaledAt, Instant receivedAt) {
+    private void recordSignal(Alert alert, SosSignalRequest request, Instant signaledAt,
+                              Instant receivedAt, SignalKind kind) {
         AlertSignal signal = new AlertSignal();
         signal.setAlert(alert);
         signal.setLatitude(request.latitude());
@@ -115,6 +132,7 @@ public class AlertServiceImpl implements AlertService {
         signal.setSignaledAt(signaledAt);
         signal.setReceivedAt(receivedAt);
         signal.setSeq(alert.getSignalCount());
+        signal.setKind(kind);
         alertSignalRepository.save(signal);
     }
 

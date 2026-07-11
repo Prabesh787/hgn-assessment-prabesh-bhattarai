@@ -1,6 +1,7 @@
 package com.example.hgh_assessment_prabesh_bhattarai.dto.response;
 
 import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertSignal;
+import com.example.hgh_assessment_prabesh_bhattarai.enums.SignalKind;
 
 import java.time.Instant;
 
@@ -11,7 +12,8 @@ public record AlertSignalResponse(
         Double longitude,
         Instant signaledAt,
         Instant receivedAt,
-        int seq) {
+        int seq,
+        SignalKind kind) {
 
     public static AlertSignalResponse from(AlertSignal signal) {
         return new AlertSignalResponse(
@@ -21,6 +23,7 @@ public record AlertSignalResponse(
                 signal.getLongitude(),
                 signal.getSignaledAt(),
                 signal.getReceivedAt(),
-                signal.getSeq());
+                signal.getSeq(),
+                signal.getKind());
     }
 }

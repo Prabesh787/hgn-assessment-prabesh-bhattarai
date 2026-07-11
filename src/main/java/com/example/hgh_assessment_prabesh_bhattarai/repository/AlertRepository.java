@@ -10,11 +10,7 @@ import java.util.Optional;
 
 public interface AlertRepository extends JpaRepository<Alert, Long> {
 
-    Optional<Alert> findByDeviceIdAndStatusNot(Long deviceId, AlertStatus status);
-
-    default Optional<Alert> findLiveByDeviceId(Long deviceId) {
-        return findByDeviceIdAndStatusNot(deviceId, AlertStatus.RESOLVED);
-    }
+    Optional<Alert> findTopByDeviceIdOrderByLastSignalAtDesc(Long deviceId);
 
     List<Alert> findByStatusAndRaisedAtLessThanEqual(AlertStatus status, Instant cutoff);
 
