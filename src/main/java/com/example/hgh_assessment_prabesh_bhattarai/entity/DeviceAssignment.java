@@ -1,5 +1,6 @@
 package com.example.hgh_assessment_prabesh_bhattarai.entity;
 
+import com.example.hgh_assessment_prabesh_bhattarai.enums.AssignmentEndReason;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

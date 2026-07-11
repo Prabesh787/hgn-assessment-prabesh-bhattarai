@@ -1,7 +1,7 @@
 package com.example.hgh_assessment_prabesh_bhattarai.service.impl;
 
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.CreateAssignmentRequest;
-import com.example.hgh_assessment_prabesh_bhattarai.entity.AssignmentEndReason;
+import com.example.hgh_assessment_prabesh_bhattarai.enums.AssignmentEndReason;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Device;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.DeviceAssignment;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.TrekOrder;

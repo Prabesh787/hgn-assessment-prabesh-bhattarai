@@ -1,7 +1,7 @@
 package com.example.hgh_assessment_prabesh_bhattarai.dto.response;
 
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Alert;
-import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertStatus;
+import com.example.hgh_assessment_prabesh_bhattarai.enums.AlertStatus;
 
 import java.time.Instant;
 

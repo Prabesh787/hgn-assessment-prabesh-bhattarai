@@ -3,10 +3,11 @@ package com.example.hgh_assessment_prabesh_bhattarai.service.impl;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.SosSignalRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Alert;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertSignal;
-import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertStatus;
+import com.example.hgh_assessment_prabesh_bhattarai.enums.AlertStatus;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Device;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.DeviceAssignment;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.TrekOrder;
+import com.example.hgh_assessment_prabesh_bhattarai.exception.ConflictException;
 import com.example.hgh_assessment_prabesh_bhattarai.exception.NotFoundException;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.AlertRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.AlertSignalRepository;
@@ -17,6 +18,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -122,4 +124,40 @@ public class AlertServiceImpl implements AlertService {
                 .map(DeviceAssignment::getTrekOrder)
                 .orElse(null);
     }
+
+
+    @Override
+    @Transactional
+    public Alert claim(Long alertId, String coordinator) {
+        Alert alert = alertRepository.findById(alertId)
+                .orElseThrow(() -> NotFoundException.alert(alertId));
+
+        switch (alert.getStatus()) {
+            case RESOLVED -> throw new ConflictException("Alert " + alertId + " is already resolved");
+            case CLAIMED -> throw new ConflictException(
+                    "Alert " + alertId + " is already claimed by " + alert.getClaimedBy());
+            default -> { /* OPEN or ESCALATED -- claimable */ }
+        }
+
+        alert.setStatus(AlertStatus.CLAIMED);
+        alert.setClaimedBy(coordinator);
+        alert.setClaimedAt(Instant.now());
+        return alertRepository.save(alert);
+    }
+
+    @Override
+    @Transactional
+    public Alert resolve(Long alertId) {
+        Alert alert = alertRepository.findById(alertId)
+                .orElseThrow(() -> NotFoundException.alert(alertId));
+
+        if (alert.getStatus() == AlertStatus.RESOLVED) {
+            throw new ConflictException("Alert " + alertId + " is already resolved");
+        }
+
+        alert.setStatus(AlertStatus.RESOLVED);
+        alert.setResolvedAt(Instant.now());
+        return alertRepository.save(alert);
+    }
+
 }

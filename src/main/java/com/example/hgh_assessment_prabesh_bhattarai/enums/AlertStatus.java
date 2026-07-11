@@ -1,4 +1,4 @@
-package com.example.hgh_assessment_prabesh_bhattarai.entity;
+package com.example.hgh_assessment_prabesh_bhattarai.enums;
 
 public enum AlertStatus {
 

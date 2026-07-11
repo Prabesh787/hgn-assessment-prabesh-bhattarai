@@ -1,10 +1,11 @@
 package com.example.hgh_assessment_prabesh_bhattarai.controller;
 
+import com.example.hgh_assessment_prabesh_bhattarai.dto.request.ClaimAlertRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.SosSignalRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.ApiResponse;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.AlertResponse;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.AlertSignalResponse;
-import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertStatus;
+import com.example.hgh_assessment_prabesh_bhattarai.enums.AlertStatus;
 import com.example.hgh_assessment_prabesh_bhattarai.service.AlertService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -66,5 +67,20 @@ public class AlertController {
                 .toList();
         return ResponseEntity.ok(
                 ApiResponse.success(HttpStatus.OK.value(), "Alert signals retrieved", body));
+    }
+
+    /** A coordinator claims an alert to respond to it. */
+    @PostMapping("/alerts/{alertId}/claim")
+    public ResponseEntity<ApiResponse<AlertResponse>> claim(@PathVariable Long alertId,
+                                                            @Valid @RequestBody ClaimAlertRequest request) {
+        AlertResponse body = AlertResponse.from(alertService.claim(alertId, request.coordinator()));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alert claimed", body));
+    }
+
+    /** Close out an alert once the emergency is over. */
+    @PostMapping("/alerts/{alertId}/resolve")
+    public ResponseEntity<ApiResponse<AlertResponse>> resolve(@PathVariable Long alertId) {
+        AlertResponse body = AlertResponse.from(alertService.resolve(alertId));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alert resolved", body));
     }
 }
