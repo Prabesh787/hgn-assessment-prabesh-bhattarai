@@ -13,4 +13,8 @@ public class NotFoundException extends RuntimeException {
     public static NotFoundException order(Long id) {
         return new NotFoundException("Order " + id + " not found");
     }
+
+    public static NotFoundException alert(Long id) {
+        return new NotFoundException("Alert " + id + " not found");
+    }
 }

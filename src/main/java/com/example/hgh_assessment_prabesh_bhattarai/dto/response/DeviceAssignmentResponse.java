@@ -1,6 +1,6 @@
 package com.example.hgh_assessment_prabesh_bhattarai.dto.response;
 
-import com.example.hgh_assessment_prabesh_bhattarai.entity.AssignmentEndReason;
+import com.example.hgh_assessment_prabesh_bhattarai.enums.AssignmentEndReason;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.DeviceAssignment;
 
 import java.time.Instant;

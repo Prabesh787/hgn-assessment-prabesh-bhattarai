@@ -1,4 +1,4 @@
-package com.example.hgh_assessment_prabesh_bhattarai.entity;
+package com.example.hgh_assessment_prabesh_bhattarai.enums;
 
 /**
  * Why a {@link DeviceAssignment} window was closed. Null while the assignment
