@@ -16,7 +16,8 @@ public record AlertResponse(
         Instant lastSignalAt,
         int signalCount,
         int retransmissionCount,
-        String claimedBy,
+        Long claimedById,
+        String claimedByName,
         Instant claimedAt,
         Instant resolvedAt,
         Instant escalatedAt) {
@@ -33,7 +34,8 @@ public record AlertResponse(
                 alert.getLastSignalAt(),
                 alert.getSignalCount(),
                 alert.getRetransmissionCount(),
-                alert.getClaimedBy(),
+                alert.getClaimedBy() != null ? alert.getClaimedBy().getId() : null,
+                alert.getClaimedBy() != null ? alert.getClaimedBy().getName() : null,
                 alert.getClaimedAt(),
                 alert.getResolvedAt(),
                 alert.getEscalatedAt());

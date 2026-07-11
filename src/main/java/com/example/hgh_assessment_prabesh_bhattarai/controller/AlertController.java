@@ -73,7 +73,7 @@ public class AlertController {
     @PostMapping("/alerts/{alertId}/claim")
     public ResponseEntity<ApiResponse<AlertResponse>> claim(@PathVariable Long alertId,
                                                             @Valid @RequestBody ClaimAlertRequest request) {
-        AlertResponse body = AlertResponse.from(alertService.claim(alertId, request.coordinator()));
+        AlertResponse body = AlertResponse.from(alertService.claim(alertId, request.coordinatorId()));
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alert claimed", body));
     }
 

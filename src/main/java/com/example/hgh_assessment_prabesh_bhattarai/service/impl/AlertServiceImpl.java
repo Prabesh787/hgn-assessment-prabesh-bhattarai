@@ -5,6 +5,7 @@ import com.example.hgh_assessment_prabesh_bhattarai.entity.Alert;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertSignal;
 import com.example.hgh_assessment_prabesh_bhattarai.enums.AlertStatus;
 import com.example.hgh_assessment_prabesh_bhattarai.enums.SignalKind;
+import com.example.hgh_assessment_prabesh_bhattarai.entity.Coordinator;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Device;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.DeviceAssignment;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.TrekOrder;
@@ -12,6 +13,7 @@ import com.example.hgh_assessment_prabesh_bhattarai.exception.ConflictException;
 import com.example.hgh_assessment_prabesh_bhattarai.exception.NotFoundException;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.AlertRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.AlertSignalRepository;
+import com.example.hgh_assessment_prabesh_bhattarai.repository.CoordinatorRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.DeviceAssignmentRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.DeviceRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.service.AlertService;
@@ -32,6 +34,7 @@ public class AlertServiceImpl implements AlertService {
     private final DeviceAssignmentRepository assignmentRepository;
     private final AlertRepository alertRepository;
     private final AlertSignalRepository alertSignalRepository;
+    private final CoordinatorRepository coordinatorRepository;
 
     private final Duration dedupWindow;
 
@@ -39,11 +42,13 @@ public class AlertServiceImpl implements AlertService {
                             DeviceAssignmentRepository assignmentRepository,
                             AlertRepository alertRepository,
                             AlertSignalRepository alertSignalRepository,
+                            CoordinatorRepository coordinatorRepository,
                             @Value("${alert.dedup.window-minutes:5}") long dedupWindowMinutes) {
         this.deviceRepository = deviceRepository;
         this.assignmentRepository = assignmentRepository;
         this.alertRepository = alertRepository;
         this.alertSignalRepository = alertSignalRepository;
+        this.coordinatorRepository = coordinatorRepository;
         this.dedupWindow = Duration.ofMinutes(dedupWindowMinutes);
     }
 
@@ -146,21 +151,28 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     @Transactional
-    public Alert claim(Long alertId, String coordinator) {
-        Alert alert = alertRepository.findById(alertId)
-                .orElseThrow(() -> NotFoundException.alert(alertId));
-
-        switch (alert.getStatus()) {
-            case RESOLVED -> throw new ConflictException("Alert " + alertId + " is already resolved");
-            case CLAIMED -> throw new ConflictException(
-                    "Alert " + alertId + " is already claimed by " + alert.getClaimedBy());
-            default -> { /* OPEN or ESCALATED -- claimable */ }
+    public Alert claim(Long alertId, Long coordinatorId) {
+        if (!alertRepository.existsById(alertId)) {
+            throw NotFoundException.alert(alertId);
         }
+        Coordinator coordinator = coordinatorRepository.findById(coordinatorId)
+                .orElseThrow(() -> NotFoundException.coordinator(coordinatorId));
 
-        alert.setStatus(AlertStatus.CLAIMED);
-        alert.setClaimedBy(coordinator);
-        alert.setClaimedAt(Instant.now());
-        return alertRepository.save(alert);
+        // Atomic compare-and-swap: succeeds only if the alert is still OPEN/ESCALATED.
+        // Concurrent claimers race on the row; exactly one update affects a row.
+        int claimed = alertRepository.claim(alertId, coordinator, Instant.now());
+        if (claimed == 0) {
+            Alert current = alertRepository.findById(alertId)
+                    .orElseThrow(() -> NotFoundException.alert(alertId));
+            throw switch (current.getStatus()) {
+                case RESOLVED -> new ConflictException("Alert " + alertId + " is already resolved");
+                case CLAIMED -> new ConflictException(
+                        "Alert " + alertId + " is already claimed by " + current.getClaimedBy().getName());
+                default -> new ConflictException("Alert " + alertId + " cannot be claimed");
+            };
+        }
+        return alertRepository.findById(alertId)
+                .orElseThrow(() -> NotFoundException.alert(alertId));
     }
 
     @Override

@@ -20,7 +20,7 @@ public interface AlertService {
     record IngestResult(Alert alert, boolean created) {
     }
 
-    Alert claim(Long alertId, String coordinator);
+    Alert claim(Long alertId, Long coordinatorId);
 
     Alert resolve(Long alertId);
 

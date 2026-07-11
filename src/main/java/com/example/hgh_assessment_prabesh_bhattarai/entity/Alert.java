@@ -59,8 +59,9 @@ public class Alert {
     @Column(name = "retransmission_count", nullable = false)
     private int retransmissionCount = 0;
 
-    @Column(name = "claimed_by")
-    private String claimedBy;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "claimed_by_id")
+    private Coordinator claimedBy;
 
     @Column(name = "claimed_at")
     private Instant claimedAt;

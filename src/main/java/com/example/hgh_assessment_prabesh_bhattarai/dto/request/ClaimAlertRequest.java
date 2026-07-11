@@ -1,10 +1,10 @@
 package com.example.hgh_assessment_prabesh_bhattarai.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 public record ClaimAlertRequest(
 
-        @NotBlank(message = "coordinator is required")
-        String coordinator
+        @NotNull(message = "coordinatorId is required")
+        Long coordinatorId
 ) {
 }
