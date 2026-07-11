@@ -2,9 +2,9 @@ package com.example.hgh_assessment_prabesh_bhattarai.service;
 
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.SosSignalRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Alert;
+import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertSignal;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertStatus;
 
-import java.time.Duration;
 import java.util.List;
 
 public interface AlertService {
@@ -15,4 +15,8 @@ public interface AlertService {
 
     List<Alert> history(Long deviceId);
 
+    List<AlertSignal> signals(Long alertId);
+
+    record IngestResult(Alert alert, boolean created) {
+    }
 }

@@ -1,9 +1,9 @@
 package com.example.hgh_assessment_prabesh_bhattarai.controller;
 
-import com.example.hgh_assessment_prabesh_bhattarai.dto.request.ClaimAlertRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.SosSignalRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.ApiResponse;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.AlertResponse;
+import com.example.hgh_assessment_prabesh_bhattarai.dto.response.AlertSignalResponse;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertStatus;
 import com.example.hgh_assessment_prabesh_bhattarai.service.AlertService;
 import jakarta.validation.Valid;
@@ -58,5 +58,13 @@ public class AlertController {
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alerts retrieved", body));
     }
 
-
+    /** Full signal trail for one alert, in the order the signals folded in. */
+    @GetMapping("/alerts/{alertId}/signals")
+    public ResponseEntity<ApiResponse<List<AlertSignalResponse>>> signals(@PathVariable Long alertId) {
+        List<AlertSignalResponse> body = alertService.signals(alertId).stream()
+                .map(AlertSignalResponse::from)
+                .toList();
+        return ResponseEntity.ok(
+                ApiResponse.success(HttpStatus.OK.value(), "Alert signals retrieved", body));
+    }
 }

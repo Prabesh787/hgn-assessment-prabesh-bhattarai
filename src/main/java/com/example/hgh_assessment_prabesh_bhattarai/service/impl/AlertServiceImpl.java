@@ -2,13 +2,14 @@ package com.example.hgh_assessment_prabesh_bhattarai.service.impl;
 
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.SosSignalRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Alert;
+import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertSignal;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertStatus;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Device;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.DeviceAssignment;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.TrekOrder;
-import com.example.hgh_assessment_prabesh_bhattarai.exception.ConflictException;
 import com.example.hgh_assessment_prabesh_bhattarai.exception.NotFoundException;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.AlertRepository;
+import com.example.hgh_assessment_prabesh_bhattarai.repository.AlertSignalRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.DeviceAssignmentRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.DeviceRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.service.AlertService;
@@ -16,7 +17,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -27,13 +27,16 @@ public class AlertServiceImpl implements AlertService {
     private final DeviceRepository deviceRepository;
     private final DeviceAssignmentRepository assignmentRepository;
     private final AlertRepository alertRepository;
+    private final AlertSignalRepository alertSignalRepository;
 
     public AlertServiceImpl(DeviceRepository deviceRepository,
                             DeviceAssignmentRepository assignmentRepository,
-                            AlertRepository alertRepository) {
+                            AlertRepository alertRepository,
+                            AlertSignalRepository alertSignalRepository) {
         this.deviceRepository = deviceRepository;
         this.assignmentRepository = assignmentRepository;
         this.alertRepository = alertRepository;
+        this.alertSignalRepository = alertSignalRepository;
     }
 
     @Override
@@ -43,13 +46,13 @@ public class AlertServiceImpl implements AlertService {
         Device device = deviceRepository.findByIdForUpdate(deviceId)
                 .orElseThrow(() -> NotFoundException.device(deviceId));
 
-        Instant at = request.raisedAt() != null ? request.raisedAt() : Instant.now();
+        Instant receivedAt = Instant.now();
+        Instant at = request.raisedAt() != null ? request.raisedAt() : receivedAt;
 
         Optional<Alert> live = alertRepository.findLiveByDeviceId(deviceId);
         if (live.isPresent()) {
             Alert alert = live.get();
             alert.setSignalCount(alert.getSignalCount() + 1);
-// Only the newest signal advances the clock and the last-known fix.
             if (at.isAfter(alert.getLastSignalAt())) {
                 alert.setLastSignalAt(at);
                 if (request.latitude() != null) {
@@ -57,7 +60,9 @@ public class AlertServiceImpl implements AlertService {
                     alert.setLongitude(request.longitude());
                 }
             }
-            return new IngestResult(alertRepository.save(alert), false);
+            Alert saved = alertRepository.save(alert);
+            recordSignal(saved, request, at, receivedAt);
+            return new IngestResult(saved, false);
         }
 
         Alert alert = new Alert();
@@ -69,9 +74,10 @@ public class AlertServiceImpl implements AlertService {
         alert.setRaisedAt(at);
         alert.setLastSignalAt(at);
         alert.setSignalCount(1);
-        return new IngestResult(alertRepository.save(alert), true);
+        Alert saved = alertRepository.save(alert);
+        recordSignal(saved, request, at, receivedAt);
+        return new IngestResult(saved, true);
     }
-
 
     @Override
     @Transactional(readOnly = true)
@@ -90,4 +96,30 @@ public class AlertServiceImpl implements AlertService {
         return alertRepository.findByDeviceIdOrderByRaisedAtDesc(deviceId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<AlertSignal> signals(Long alertId) {
+        if (!alertRepository.existsById(alertId)) {
+            throw NotFoundException.alert(alertId);
+        }
+        return alertSignalRepository.findByAlertIdOrderBySeqAsc(alertId);
+    }
+
+    private void recordSignal(Alert alert, SosSignalRequest request, Instant signaledAt, Instant receivedAt) {
+        AlertSignal signal = new AlertSignal();
+        signal.setAlert(alert);
+        signal.setLatitude(request.latitude());
+        signal.setLongitude(request.longitude());
+        signal.setSignaledAt(signaledAt);
+        signal.setReceivedAt(receivedAt);
+        signal.setSeq(alert.getSignalCount());
+        alertSignalRepository.save(signal);
+    }
+
+    private TrekOrder resolveOrder(Long deviceId, Instant at) {
+        return assignmentRepository.findCoveringTimestamp(deviceId, at).stream()
+                .findFirst()
+                .map(DeviceAssignment::getTrekOrder)
+                .orElse(null);
+    }
 }
