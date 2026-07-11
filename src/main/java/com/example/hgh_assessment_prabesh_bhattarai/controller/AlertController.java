@@ -1,0 +1,62 @@
+package com.example.hgh_assessment_prabesh_bhattarai.controller;
+
+import com.example.hgh_assessment_prabesh_bhattarai.dto.request.ClaimAlertRequest;
+import com.example.hgh_assessment_prabesh_bhattarai.dto.request.SosSignalRequest;
+import com.example.hgh_assessment_prabesh_bhattarai.dto.response.ApiResponse;
+import com.example.hgh_assessment_prabesh_bhattarai.dto.response.AlertResponse;
+import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertStatus;
+import com.example.hgh_assessment_prabesh_bhattarai.service.AlertService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+@RestController
+public class AlertController {
+
+    private final AlertService alertService;
+
+    public AlertController(AlertService alertService) {
+        this.alertService = alertService;
+    }
+
+    /** Take in an SOS signal from a device (deduped into its live alert). */
+    @PostMapping("/devices/{deviceId}/alerts")
+    public ResponseEntity<ApiResponse<AlertResponse>> ingest(@PathVariable Long deviceId,
+                                                             @Valid @RequestBody SosSignalRequest request) {
+        AlertService.IngestResult result = alertService.ingest(deviceId, request);
+        HttpStatus status = result.created() ? HttpStatus.CREATED : HttpStatus.OK;
+        String message = result.created() ? "SOS alert raised" : "Signal folded into existing alert";
+        return ResponseEntity.status(status)
+                .body(ApiResponse.success(status.value(), message, AlertResponse.from(result.alert())));
+    }
+
+    /** Full alert history for a device, newest first. */
+    @GetMapping("/devices/{deviceId}/alerts")
+    public ResponseEntity<ApiResponse<List<AlertResponse>>> history(@PathVariable Long deviceId) {
+        List<AlertResponse> body = alertService.history(deviceId).stream()
+                .map(AlertResponse::from)
+                .toList();
+        return ResponseEntity.ok(
+                ApiResponse.success(HttpStatus.OK.value(), "Alert history retrieved", body));
+    }
+
+    /** Coordinator dashboard: all alerts, optionally filtered by status. */
+    @GetMapping("/alerts")
+    public ResponseEntity<ApiResponse<List<AlertResponse>>> list(
+            @RequestParam(required = false) AlertStatus status) {
+        List<AlertResponse> body = alertService.list(status).stream()
+                .map(AlertResponse::from)
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alerts retrieved", body));
+    }
+
+
+}
