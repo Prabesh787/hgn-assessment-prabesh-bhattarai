@@ -42,6 +42,13 @@ public class TrekOrderServiceImpl implements TrekOrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public TrekOrder get(Long orderId) {
+        return orderRepository.findDetailById(orderId)
+                .orElseThrow(() -> NotFoundException.order(orderId));
+    }
+
+    @Override
     @Transactional
     public Trekker addTrekker(Long orderId, CreateTrekkerRequest request) {
         TrekOrder order = orderRepository.findById(orderId)

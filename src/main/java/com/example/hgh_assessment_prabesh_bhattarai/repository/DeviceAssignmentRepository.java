@@ -21,6 +21,7 @@ public interface DeviceAssignmentRepository extends JpaRepository<DeviceAssignme
             WHERE a.device.id = :deviceId
               AND a.assignedFrom <= :at
               AND (a.assignedTo IS NULL OR a.assignedTo > :at)
+            ORDER BY a.assignedFrom DESC
             """)
     List<DeviceAssignment> findCoveringTimestamp(@Param("deviceId") Long deviceId, @Param("at") Instant at);
 

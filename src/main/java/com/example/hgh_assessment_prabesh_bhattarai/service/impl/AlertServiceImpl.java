@@ -4,6 +4,8 @@ import com.example.hgh_assessment_prabesh_bhattarai.dto.request.SosSignalRequest
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Alert;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertSignal;
 import com.example.hgh_assessment_prabesh_bhattarai.enums.AlertStatus;
+import com.example.hgh_assessment_prabesh_bhattarai.enums.SignalKind;
+import com.example.hgh_assessment_prabesh_bhattarai.entity.Coordinator;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Device;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.DeviceAssignment;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.TrekOrder;
@@ -11,9 +13,12 @@ import com.example.hgh_assessment_prabesh_bhattarai.exception.ConflictException;
 import com.example.hgh_assessment_prabesh_bhattarai.exception.NotFoundException;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.AlertRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.AlertSignalRepository;
+import com.example.hgh_assessment_prabesh_bhattarai.repository.CoordinatorRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.DeviceAssignmentRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.DeviceRepository;
+import com.example.hgh_assessment_prabesh_bhattarai.repository.TrekOrderRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.service.AlertService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,15 +35,25 @@ public class AlertServiceImpl implements AlertService {
     private final DeviceAssignmentRepository assignmentRepository;
     private final AlertRepository alertRepository;
     private final AlertSignalRepository alertSignalRepository;
+    private final CoordinatorRepository coordinatorRepository;
+    private final TrekOrderRepository orderRepository;
+
+    private final Duration dedupWindow;
 
     public AlertServiceImpl(DeviceRepository deviceRepository,
                             DeviceAssignmentRepository assignmentRepository,
                             AlertRepository alertRepository,
-                            AlertSignalRepository alertSignalRepository) {
+                            AlertSignalRepository alertSignalRepository,
+                            CoordinatorRepository coordinatorRepository,
+                            TrekOrderRepository orderRepository,
+                            @Value("${alert.dedup.window-minutes:5}") long dedupWindowMinutes) {
         this.deviceRepository = deviceRepository;
         this.assignmentRepository = assignmentRepository;
         this.alertRepository = alertRepository;
         this.alertSignalRepository = alertSignalRepository;
+        this.coordinatorRepository = coordinatorRepository;
+        this.orderRepository = orderRepository;
+        this.dedupWindow = Duration.ofMinutes(dedupWindowMinutes);
     }
 
     @Override
@@ -51,10 +66,11 @@ public class AlertServiceImpl implements AlertService {
         Instant receivedAt = Instant.now();
         Instant at = request.raisedAt() != null ? request.raisedAt() : receivedAt;
 
-        Optional<Alert> live = alertRepository.findLiveByDeviceId(deviceId);
-        if (live.isPresent()) {
-            Alert alert = live.get();
+        Optional<Alert> latest = alertRepository.findTopByDeviceIdOrderByLastSignalAtDesc(deviceId);
+        if (latest.isPresent() && isRetransmission(latest.get(), at)) {
+            Alert alert = latest.get();
             alert.setSignalCount(alert.getSignalCount() + 1);
+            alert.setRetransmissionCount(alert.getRetransmissionCount() + 1);
             if (at.isAfter(alert.getLastSignalAt())) {
                 alert.setLastSignalAt(at);
                 if (request.latitude() != null) {
@@ -63,7 +79,7 @@ public class AlertServiceImpl implements AlertService {
                 }
             }
             Alert saved = alertRepository.save(alert);
-            recordSignal(saved, request, at, receivedAt);
+            recordSignal(saved, request, at, receivedAt, SignalKind.RETRANSMISSION);
             return new IngestResult(saved, false);
         }
 
@@ -76,9 +92,18 @@ public class AlertServiceImpl implements AlertService {
         alert.setRaisedAt(at);
         alert.setLastSignalAt(at);
         alert.setSignalCount(1);
+        alert.setRetransmissionCount(0);
         Alert saved = alertRepository.save(alert);
-        recordSignal(saved, request, at, receivedAt);
+        recordSignal(saved, request, at, receivedAt, SignalKind.RAISED);
         return new IngestResult(saved, true);
+    }
+
+    private boolean isRetransmission(Alert alert, Instant signalAt) {
+        if (alert.getStatus() == AlertStatus.RESOLVED) {
+            return false;
+        }
+        Duration gap = Duration.between(alert.getLastSignalAt(), signalAt).abs();
+        return gap.compareTo(dedupWindow) <= 0;
     }
 
     @Override
@@ -87,6 +112,13 @@ public class AlertServiceImpl implements AlertService {
         return status != null
                 ? alertRepository.findByStatusOrderByRaisedAtDesc(status)
                 : alertRepository.findAll(Sort.by(Sort.Direction.DESC, "raisedAt"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Alert detail(Long alertId) {
+        return alertRepository.findDetailById(alertId)
+                .orElseThrow(() -> NotFoundException.alert(alertId));
     }
 
     @Override
@@ -107,7 +139,8 @@ public class AlertServiceImpl implements AlertService {
         return alertSignalRepository.findByAlertIdOrderBySeqAsc(alertId);
     }
 
-    private void recordSignal(Alert alert, SosSignalRequest request, Instant signaledAt, Instant receivedAt) {
+    private void recordSignal(Alert alert, SosSignalRequest request, Instant signaledAt,
+                              Instant receivedAt, SignalKind kind) {
         AlertSignal signal = new AlertSignal();
         signal.setAlert(alert);
         signal.setLatitude(request.latitude());
@@ -115,33 +148,63 @@ public class AlertServiceImpl implements AlertService {
         signal.setSignaledAt(signaledAt);
         signal.setReceivedAt(receivedAt);
         signal.setSeq(alert.getSignalCount());
+        signal.setKind(kind);
         alertSignalRepository.save(signal);
     }
 
     private TrekOrder resolveOrder(Long deviceId, Instant at) {
-        return assignmentRepository.findCoveringTimestamp(deviceId, at).stream()
-                .findFirst()
-                .map(DeviceAssignment::getTrekOrder)
-                .orElse(null);
+        List<DeviceAssignment> covering = assignmentRepository.findCoveringTimestamp(deviceId, at);
+        return covering.size() == 1 ? covering.get(0).getTrekOrder() : null;
     }
 
 
     @Override
     @Transactional
-    public Alert claim(Long alertId, String coordinator) {
+    public Alert claim(Long alertId, Long coordinatorId) {
+        if (!alertRepository.existsById(alertId)) {
+            throw NotFoundException.alert(alertId);
+        }
+        Coordinator coordinator = coordinatorRepository.findById(coordinatorId)
+                .orElseThrow(() -> NotFoundException.coordinator(coordinatorId));
+
+        // Atomic compare-and-swap: succeeds only if the alert is still OPEN/ESCALATED.
+        // Concurrent claimers race on the row; exactly one update affects a row.
+        int claimed = alertRepository.claim(alertId, coordinator, Instant.now());
+        if (claimed == 0) {
+            Alert current = alertRepository.findById(alertId)
+                    .orElseThrow(() -> NotFoundException.alert(alertId));
+            throw switch (current.getStatus()) {
+                case RESOLVED -> new ConflictException("Alert " + alertId + " is already resolved");
+                case CLAIMED -> new ConflictException(
+                        "Alert " + alertId + " is already claimed by " + current.getClaimedBy().getName());
+                default -> new ConflictException("Alert " + alertId + " cannot be claimed");
+            };
+        }
+        return alertRepository.findById(alertId)
+                .orElseThrow(() -> NotFoundException.alert(alertId));
+    }
+
+    /**
+     * The escape hatch for an alert the system refused to guess at. A coordinator works out
+     * the real group -- from the location, the trek schedule, the device's assignment history
+     * -- and attaches it. Only fills a gap; it will not silently overwrite an order that was
+     * resolved from a covering assignment.
+     */
+    @Override
+    @Transactional
+    public Alert assignOrder(Long alertId, Long orderId) {
         Alert alert = alertRepository.findById(alertId)
                 .orElseThrow(() -> NotFoundException.alert(alertId));
 
-        switch (alert.getStatus()) {
-            case RESOLVED -> throw new ConflictException("Alert " + alertId + " is already resolved");
-            case CLAIMED -> throw new ConflictException(
-                    "Alert " + alertId + " is already claimed by " + alert.getClaimedBy());
-            default -> { /* OPEN or ESCALATED -- claimable */ }
+        if (alert.getTrekOrder() != null) {
+            throw new ConflictException("Alert " + alertId + " is already linked to order "
+                    + alert.getTrekOrder().getId());
         }
 
-        alert.setStatus(AlertStatus.CLAIMED);
-        alert.setClaimedBy(coordinator);
-        alert.setClaimedAt(Instant.now());
+        TrekOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> NotFoundException.order(orderId));
+
+        alert.setTrekOrder(order);
         return alertRepository.save(alert);
     }
 

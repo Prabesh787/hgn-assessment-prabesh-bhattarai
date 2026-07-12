@@ -1,8 +1,10 @@
 package com.example.hgh_assessment_prabesh_bhattarai.controller;
 
+import com.example.hgh_assessment_prabesh_bhattarai.dto.request.AssignOrderRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.ClaimAlertRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.SosSignalRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.ApiResponse;
+import com.example.hgh_assessment_prabesh_bhattarai.dto.response.AlertDetailResponse;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.AlertResponse;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.AlertSignalResponse;
 import com.example.hgh_assessment_prabesh_bhattarai.enums.AlertStatus;
@@ -59,6 +61,16 @@ public class AlertController {
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alerts retrieved", body));
     }
 
+    /**
+     * Alert detail: who is in trouble. Eager-loads the trekking party, because a shared device
+     * cannot report which member pressed it -- the group is the unit of response.
+     */
+    @GetMapping("/alerts/{alertId}")
+    public ResponseEntity<ApiResponse<AlertDetailResponse>> detail(@PathVariable Long alertId) {
+        AlertDetailResponse body = AlertDetailResponse.from(alertService.detail(alertId));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alert retrieved", body));
+    }
+
     /** Full signal trail for one alert, in the order the signals folded in. */
     @GetMapping("/alerts/{alertId}/signals")
     public ResponseEntity<ApiResponse<List<AlertSignalResponse>>> signals(@PathVariable Long alertId) {
@@ -73,8 +85,15 @@ public class AlertController {
     @PostMapping("/alerts/{alertId}/claim")
     public ResponseEntity<ApiResponse<AlertResponse>> claim(@PathVariable Long alertId,
                                                             @Valid @RequestBody ClaimAlertRequest request) {
-        AlertResponse body = AlertResponse.from(alertService.claim(alertId, request.coordinator()));
+        AlertResponse body = AlertResponse.from(alertService.claim(alertId, request.coordinatorId()));
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alert claimed", body));
+    }
+
+    @PostMapping("/alerts/{alertId}/assign-order")
+    public ResponseEntity<ApiResponse<AlertResponse>> assignOrder(@PathVariable Long alertId,
+                                                                  @Valid @RequestBody AssignOrderRequest request) {
+        AlertResponse body = AlertResponse.from(alertService.assignOrder(alertId, request.orderId()));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alert assigned to order", body));
     }
 
     /** Close out an alert once the emergency is over. */

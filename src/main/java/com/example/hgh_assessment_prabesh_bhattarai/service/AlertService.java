@@ -5,7 +5,6 @@ import com.example.hgh_assessment_prabesh_bhattarai.entity.Alert;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.AlertSignal;
 import com.example.hgh_assessment_prabesh_bhattarai.enums.AlertStatus;
 
-import java.time.Duration;
 import java.util.List;
 
 public interface AlertService {
@@ -14,6 +13,9 @@ public interface AlertService {
 
     List<Alert> list(AlertStatus status);
 
+    /** One alert with its device, claimant and full trekking party eagerly loaded. */
+    Alert detail(Long alertId);
+
     List<Alert> history(Long deviceId);
 
     List<AlertSignal> signals(Long alertId);
@@ -21,7 +23,10 @@ public interface AlertService {
     record IngestResult(Alert alert, boolean created) {
     }
 
-    Alert claim(Long alertId, String coordinator);
+    Alert claim(Long alertId, Long coordinatorId);
+
+    /** Manual triage for an alert the system could not attribute to an order. */
+    Alert assignOrder(Long alertId, Long orderId);
 
     Alert resolve(Long alertId);
 

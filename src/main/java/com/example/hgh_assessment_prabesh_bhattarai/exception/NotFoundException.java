@@ -17,4 +17,8 @@ public class NotFoundException extends RuntimeException {
     public static NotFoundException alert(Long id) {
         return new NotFoundException("Alert " + id + " not found");
     }
+
+    public static NotFoundException coordinator(Long id) {
+        return new NotFoundException("Coordinator " + id + " not found");
+    }
 }
