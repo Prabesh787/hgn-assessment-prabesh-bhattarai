@@ -9,5 +9,8 @@ public interface TrekOrderService {
 
     TrekOrder create(CreateTrekOrderRequest request);
 
+    /** One order with its whole party eagerly loaded. */
+    TrekOrder get(Long orderId);
+
     Trekker addTrekker(Long orderId, CreateTrekkerRequest request);
 }

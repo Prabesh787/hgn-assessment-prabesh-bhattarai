@@ -4,6 +4,7 @@ import com.example.hgh_assessment_prabesh_bhattarai.dto.request.AssignOrderReque
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.ClaimAlertRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.SosSignalRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.ApiResponse;
+import com.example.hgh_assessment_prabesh_bhattarai.dto.response.AlertDetailResponse;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.AlertResponse;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.AlertSignalResponse;
 import com.example.hgh_assessment_prabesh_bhattarai.enums.AlertStatus;
@@ -58,6 +59,16 @@ public class AlertController {
                 .map(AlertResponse::from)
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alerts retrieved", body));
+    }
+
+    /**
+     * Alert detail: who is in trouble. Eager-loads the trekking party, because a shared device
+     * cannot report which member pressed it -- the group is the unit of response.
+     */
+    @GetMapping("/alerts/{alertId}")
+    public ResponseEntity<ApiResponse<AlertDetailResponse>> detail(@PathVariable Long alertId) {
+        AlertDetailResponse body = AlertDetailResponse.from(alertService.detail(alertId));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alert retrieved", body));
     }
 
     /** Full signal trail for one alert, in the order the signals folded in. */

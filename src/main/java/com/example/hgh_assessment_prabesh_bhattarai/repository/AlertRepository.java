@@ -17,6 +17,22 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
 
     Optional<Alert> findTopByDeviceIdOrderByLastSignalAtDesc(Long deviceId);
 
+    /**
+     * One alert with everything a coordinator needs to act on it -- device, claiming
+     * coordinator, and the whole trekking party -- in a single query. A shared device cannot
+     * say which trekker pressed it, so the group is the unit of response: this is what makes
+     * an alert from a shared device make sense at the group level.
+     */
+    @Query("""
+            SELECT a FROM Alert a
+            LEFT JOIN FETCH a.device
+            LEFT JOIN FETCH a.claimedBy
+            LEFT JOIN FETCH a.trekOrder o
+            LEFT JOIN FETCH o.trekkers
+            WHERE a.id = :alertId
+            """)
+    Optional<Alert> findDetailById(@Param("alertId") Long alertId);
+
     
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

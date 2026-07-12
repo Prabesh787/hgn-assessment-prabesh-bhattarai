@@ -13,6 +13,9 @@ public interface AlertService {
 
     List<Alert> list(AlertStatus status);
 
+    /** One alert with its device, claimant and full trekking party eagerly loaded. */
+    Alert detail(Long alertId);
+
     List<Alert> history(Long deviceId);
 
     List<AlertSignal> signals(Long alertId);

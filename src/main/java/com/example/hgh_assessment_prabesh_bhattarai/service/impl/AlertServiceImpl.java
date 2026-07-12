@@ -116,6 +116,13 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     @Transactional(readOnly = true)
+    public Alert detail(Long alertId) {
+        return alertRepository.findDetailById(alertId)
+                .orElseThrow(() -> NotFoundException.alert(alertId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Alert> history(Long deviceId) {
         if (!deviceRepository.existsById(deviceId)) {
             throw NotFoundException.device(deviceId);
