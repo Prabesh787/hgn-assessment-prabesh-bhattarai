@@ -1,5 +1,6 @@
 package com.example.hgh_assessment_prabesh_bhattarai.controller;
 
+import com.example.hgh_assessment_prabesh_bhattarai.dto.request.CloseAssignmentRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.CreateAssignmentRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.ApiResponse;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.DeviceAssignmentResponse;
@@ -33,6 +34,16 @@ public class DeviceAssignmentController {
                 DeviceAssignmentResponse.from(assignmentService.assign(deviceId, request));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(HttpStatus.CREATED.value(), "Device assigned to order", body));
+    }
+
+    /** Release the device -- trek finished or cancelled. Leaves the device unassigned. */
+    @PostMapping("/close")
+    public ResponseEntity<ApiResponse<DeviceAssignmentResponse>> close(@PathVariable Long deviceId,
+                                                                       @Valid @RequestBody CloseAssignmentRequest request) {
+        DeviceAssignmentResponse body =
+                DeviceAssignmentResponse.from(assignmentService.close(deviceId, request));
+        return ResponseEntity.ok(
+                ApiResponse.success(HttpStatus.OK.value(), "Device assignment closed", body));
     }
 
     /** It shows the history if device assigned to many orders over time. */

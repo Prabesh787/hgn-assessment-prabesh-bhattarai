@@ -16,6 +16,7 @@ import com.example.hgh_assessment_prabesh_bhattarai.repository.AlertSignalReposi
 import com.example.hgh_assessment_prabesh_bhattarai.repository.CoordinatorRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.DeviceAssignmentRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.repository.DeviceRepository;
+import com.example.hgh_assessment_prabesh_bhattarai.repository.TrekOrderRepository;
 import com.example.hgh_assessment_prabesh_bhattarai.service.AlertService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
@@ -35,6 +36,7 @@ public class AlertServiceImpl implements AlertService {
     private final AlertRepository alertRepository;
     private final AlertSignalRepository alertSignalRepository;
     private final CoordinatorRepository coordinatorRepository;
+    private final TrekOrderRepository orderRepository;
 
     private final Duration dedupWindow;
 
@@ -43,12 +45,14 @@ public class AlertServiceImpl implements AlertService {
                             AlertRepository alertRepository,
                             AlertSignalRepository alertSignalRepository,
                             CoordinatorRepository coordinatorRepository,
+                            TrekOrderRepository orderRepository,
                             @Value("${alert.dedup.window-minutes:5}") long dedupWindowMinutes) {
         this.deviceRepository = deviceRepository;
         this.assignmentRepository = assignmentRepository;
         this.alertRepository = alertRepository;
         this.alertSignalRepository = alertSignalRepository;
         this.coordinatorRepository = coordinatorRepository;
+        this.orderRepository = orderRepository;
         this.dedupWindow = Duration.ofMinutes(dedupWindowMinutes);
     }
 
@@ -142,10 +146,8 @@ public class AlertServiceImpl implements AlertService {
     }
 
     private TrekOrder resolveOrder(Long deviceId, Instant at) {
-        return assignmentRepository.findCoveringTimestamp(deviceId, at).stream()
-                .findFirst()
-                .map(DeviceAssignment::getTrekOrder)
-                .orElse(null);
+        List<DeviceAssignment> covering = assignmentRepository.findCoveringTimestamp(deviceId, at);
+        return covering.size() == 1 ? covering.get(0).getTrekOrder() : null;
     }
 
 
@@ -173,6 +175,30 @@ public class AlertServiceImpl implements AlertService {
         }
         return alertRepository.findById(alertId)
                 .orElseThrow(() -> NotFoundException.alert(alertId));
+    }
+
+    /**
+     * The escape hatch for an alert the system refused to guess at. A coordinator works out
+     * the real group -- from the location, the trek schedule, the device's assignment history
+     * -- and attaches it. Only fills a gap; it will not silently overwrite an order that was
+     * resolved from a covering assignment.
+     */
+    @Override
+    @Transactional
+    public Alert assignOrder(Long alertId, Long orderId) {
+        Alert alert = alertRepository.findById(alertId)
+                .orElseThrow(() -> NotFoundException.alert(alertId));
+
+        if (alert.getTrekOrder() != null) {
+            throw new ConflictException("Alert " + alertId + " is already linked to order "
+                    + alert.getTrekOrder().getId());
+        }
+
+        TrekOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> NotFoundException.order(orderId));
+
+        alert.setTrekOrder(order);
+        return alertRepository.save(alert);
     }
 
     @Override

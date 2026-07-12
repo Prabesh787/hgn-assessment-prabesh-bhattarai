@@ -22,6 +22,9 @@ public interface AlertService {
 
     Alert claim(Long alertId, Long coordinatorId);
 
+    /** Manual triage for an alert the system could not attribute to an order. */
+    Alert assignOrder(Long alertId, Long orderId);
+
     Alert resolve(Long alertId);
 
 

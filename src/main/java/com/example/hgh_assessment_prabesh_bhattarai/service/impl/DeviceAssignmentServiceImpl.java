@@ -1,5 +1,6 @@
 package com.example.hgh_assessment_prabesh_bhattarai.service.impl;
 
+import com.example.hgh_assessment_prabesh_bhattarai.dto.request.CloseAssignmentRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.CreateAssignmentRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.enums.AssignmentEndReason;
 import com.example.hgh_assessment_prabesh_bhattarai.entity.Device;
@@ -71,6 +72,35 @@ public class DeviceAssignmentServiceImpl implements DeviceAssignmentService {
         assignment.setAssignedFrom(assignedFrom);
         assignment.setActive(true);
         return assignmentRepository.save(assignment);
+    }
+
+    @Override
+    @Transactional
+    public DeviceAssignment close(Long deviceId, CloseAssignmentRequest request) {
+        if (request.reason() == AssignmentEndReason.REASSIGNED) {
+            throw new ConflictException(
+                    "REASSIGNED is stamped automatically when a device moves to another order; "
+                            + "close with COMPLETED or CANCELLED");
+        }
+
+        // Same device row lock as assign(), so a concurrent assign/close cannot interleave.
+        deviceRepository.findByIdForUpdate(deviceId)
+                .orElseThrow(() -> NotFoundException.device(deviceId));
+
+        DeviceAssignment active = assignmentRepository.findActiveByDeviceId(deviceId)
+                .orElseThrow(() -> new ConflictException(
+                        "Device " + deviceId + " has no active assignment to close"));
+
+        Instant assignedTo = request.assignedTo() != null ? request.assignedTo() : Instant.now();
+        if (!assignedTo.isAfter(active.getAssignedFrom())) {
+            throw new ConflictException(
+                    "assignedTo must be after the assignment started at " + active.getAssignedFrom());
+        }
+
+        active.setAssignedTo(assignedTo);
+        active.setActive(false);
+        active.setEndReason(request.reason());
+        return assignmentRepository.save(active);
     }
 
     @Override

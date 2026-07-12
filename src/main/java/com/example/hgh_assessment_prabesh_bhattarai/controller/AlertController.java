@@ -1,5 +1,6 @@
 package com.example.hgh_assessment_prabesh_bhattarai.controller;
 
+import com.example.hgh_assessment_prabesh_bhattarai.dto.request.AssignOrderRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.ClaimAlertRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.request.SosSignalRequest;
 import com.example.hgh_assessment_prabesh_bhattarai.dto.response.ApiResponse;
@@ -75,6 +76,13 @@ public class AlertController {
                                                             @Valid @RequestBody ClaimAlertRequest request) {
         AlertResponse body = AlertResponse.from(alertService.claim(alertId, request.coordinatorId()));
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alert claimed", body));
+    }
+
+    @PostMapping("/alerts/{alertId}/assign-order")
+    public ResponseEntity<ApiResponse<AlertResponse>> assignOrder(@PathVariable Long alertId,
+                                                                  @Valid @RequestBody AssignOrderRequest request) {
+        AlertResponse body = AlertResponse.from(alertService.assignOrder(alertId, request.orderId()));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), "Alert assigned to order", body));
     }
 
     /** Close out an alert once the emergency is over. */
