@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
@@ -168,7 +169,6 @@ public class AlertServiceImpl implements AlertService {
                 .orElseThrow(() -> NotFoundException.coordinator(coordinatorId));
 
         // Atomic compare-and-swap: succeeds only if the alert is still OPEN/ESCALATED.
-        // Concurrent claimers race on the row; exactly one update affects a row.
         int claimed = alertRepository.claim(alertId, coordinator, Instant.now());
         if (claimed == 0) {
             Alert current = alertRepository.findById(alertId)
@@ -184,12 +184,7 @@ public class AlertServiceImpl implements AlertService {
                 .orElseThrow(() -> NotFoundException.alert(alertId));
     }
 
-    /**
-     * The escape hatch for an alert the system refused to guess at. A coordinator works out
-     * the real group -- from the location, the trek schedule, the device's assignment history
-     * -- and attaches it. Only fills a gap; it will not silently overwrite an order that was
-     * resolved from a covering assignment.
-     */
+
     @Override
     @Transactional
     public Alert assignOrder(Long alertId, Long orderId) {
@@ -221,6 +216,20 @@ public class AlertServiceImpl implements AlertService {
         alert.setStatus(AlertStatus.RESOLVED);
         alert.setResolvedAt(Instant.now());
         return alertRepository.save(alert);
+    }
+
+
+    @Override
+    @Transactional
+    public List<Alert> escalateOverdue(Duration threshold) {
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        Instant cutoff = now.minus(threshold);
+
+        int escalated = alertRepository.escalateOverdue(cutoff, now);
+        return escalated == 0
+                ? List.of()
+                : alertRepository.findByStatusAndEscalatedAt(AlertStatus.ESCALATED, now);
     }
 
 }

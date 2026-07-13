@@ -17,12 +17,6 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
 
     Optional<Alert> findTopByDeviceIdOrderByLastSignalAtDesc(Long deviceId);
 
-    /**
-     * One alert with everything a coordinator needs to act on it -- device, claiming
-     * coordinator, and the whole trekking party -- in a single query. A shared device cannot
-     * say which trekker pressed it, so the group is the unit of response: this is what makes
-     * an alert from a shared device make sense at the group level.
-     */
     @Query("""
             SELECT a FROM Alert a
             LEFT JOIN FETCH a.device
@@ -55,11 +49,25 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
                 List.of(AlertStatus.OPEN, AlertStatus.ESCALATED));
     }
 
-    List<Alert> findByStatusAndRaisedAtLessThanEqual(AlertStatus status, Instant cutoff);
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Alert a
+               SET a.status = :escalatedStatus,
+                   a.escalatedAt = :now
+             WHERE a.status = :openStatus
+               AND a.raisedAt <= :cutoff
+            """)
+    int escalateGuarded(@Param("cutoff") Instant cutoff,
+                        @Param("now") Instant now,
+                        @Param("escalatedStatus") AlertStatus escalatedStatus,
+                        @Param("openStatus") AlertStatus openStatus);
 
-    default List<Alert> findEscalationCandidates(Instant cutoff) {
-        return findByStatusAndRaisedAtLessThanEqual(AlertStatus.OPEN, cutoff);
+
+    default int escalateOverdue(Instant cutoff, Instant now) {
+        return escalateGuarded(cutoff, now, AlertStatus.ESCALATED, AlertStatus.OPEN);
     }
+
+    List<Alert> findByStatusAndEscalatedAt(AlertStatus status, Instant escalatedAt);
 
     List<Alert> findByStatusOrderByRaisedAtDesc(AlertStatus status);
 
